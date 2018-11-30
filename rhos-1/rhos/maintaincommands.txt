@@ -1,0 +1,10 @@
+oc rollout latest <dcname>
+oc rollout history dc/<name> [--revision=1]
+oc deploy --cancel dc/<name>
+oc deploy --retry dc/<name>
+oc rollout undo dc/<name> [--to-revision=1]
+oc rollout pause dc/<name>
+oc rollout resume dc/<name>
+oc scale dc/<name> --replicas=10
+oc autoscale dc/<name> --min=10 --max=15 --cpu-percent=80
+oc set resources dc/<name> -c=<container> --limits=cpu=200m,memory=512Mi\

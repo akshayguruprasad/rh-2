@@ -1,0 +1,995 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    creationTimestamp: null
+    generation: 2
+    labels:
+      name: mongodb
+    name: mongodb
+  spec:
+    podManagementPolicy: OrderedReady
+    replicas: 5
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: mongodb
+    serviceName: mongodb-internal
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: mongodb
+      spec:
+        containers:
+        - args:
+          - run-mongod-replication
+          env:
+          - name: MONGODB_DATABASE
+            value: mongodb
+          - name: MONGODB_USER
+            value: mongodb_user
+          - name: MONGODB_PASSWORD
+            value: mongodb_password
+          - name: MONGODB_ADMIN_PASSWORD
+            value: mongodb_admin_password
+          - name: MONGODB_REPLICA_NAME
+            value: rs0
+          - name: MONGODB_KEYFILE_VALUE
+            value: "12345678901234567890"
+          - name: MONGODB_SERVICE_NAME
+            value: mongodb-internal
+          image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+          imagePullPolicy: Always
+          name: mongo-container
+          ports:
+          - containerPort: 27017
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - stat
+              - /tmp/initialized
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/mongodb/data
+            name: mongo-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - metadata:
+        creationTimestamp: null
+        labels:
+          name: mongodb
+        name: mongo-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 4Gi
+      status:
+        phase: Pending
+  status:
+    collisionCount: 0
+    currentReplicas: 5
+    currentRevision: mongodb-84c5cf6978
+    observedGeneration: 2
+    readyReplicas: 5
+    replicas: 5
+    updateRevision: mongodb-84c5cf6978
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: rocketchat
+    name: rocketchat
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: rocketchat
+      deploymentconfig: rocketchat
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: rocketchat
+          deploymentconfig: rocketchat
+      spec:
+        containers:
+        - env:
+          - name: MONGO_URL
+            value: mongodb://mongodb_user:mongodb_password@mongodb:27017/mongodb?replicaSet=rs0
+          image: docker.io/rocketchat/rocket.chat@sha256:04ff52eb15fbbe542d29e787b72840f7b995f4384d2603cc0c5c9f62d18ffa42
+          imagePullPolicy: IfNotPresent
+          name: rocketchat
+          ports:
+          - containerPort: 3000
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /app/uploads
+            name: rocketchat-volume-1
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: rocketchat-volume-1
+    test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - rocketchat
+        from:
+          kind: ImageStreamTag
+          name: rocketchat:0.63.3
+          namespace: xyz-rocket
+      type: ImageChange
+  status:
+    availableReplicas: 0
+    latestVersion: 0
+    observedGeneration: 0
+    replicas: 0
+    unavailableReplicas: 0
+    updatedReplicas: 0
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+      openshift.io/image.dockerRepositoryCheck: 2018-11-30T11:50:00Z
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: rocketchat
+    name: rocketchat
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+    - annotations:
+        openshift.io/imported-from: docker.io/rocketchat/rocket.chat:0.63.3
+      from:
+        kind: DockerImage
+        name: docker-registry.default.svc:5000/xyz-rocket/rocketchat:0.63.3
+      generation: 2
+      importPolicy: {}
+      name: 0.63.3
+      referencePolicy:
+        type: Source
+  status:
+    dockerImageRepository: ""
+- apiVersion: v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: "true"
+    creationTimestamp: null
+    labels:
+      app: rocketchat
+    name: rocketchat
+  spec:
+    host: rocketchat-xyz-rocket.apps.4df4.openshift.opentlc.com
+    port:
+      targetPort: 3000-tcp
+    to:
+      kind: Service
+      name: rocketchat
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+    - conditions:
+      - lastTransitionTime: 2018-11-30T11:50:04Z
+        status: "True"
+        type: Admitted
+      host: rocketchat-xyz-rocket.apps.4df4.openshift.opentlc.com
+      routerName: router
+      wildcardPolicy: None
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container mongo-container; cpu, memory limit for container mongo-container'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: mongodb-
+    labels:
+      controller-revision-hash: mongodb-84c5cf6978
+      name: mongodb
+      statefulset.kubernetes.io/pod-name: mongodb-0
+    ownerReferences:
+    - apiVersion: apps/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: mongodb
+      uid: 88e9b134-f495-11e8-b028-025673be3232
+  spec:
+    containers:
+    - args:
+      - run-mongod-replication
+      env:
+      - name: MONGODB_DATABASE
+        value: mongodb
+      - name: MONGODB_USER
+        value: mongodb_user
+      - name: MONGODB_PASSWORD
+        value: mongodb_password
+      - name: MONGODB_ADMIN_PASSWORD
+        value: mongodb_admin_password
+      - name: MONGODB_REPLICA_NAME
+        value: rs0
+      - name: MONGODB_KEYFILE_VALUE
+        value: "12345678901234567890"
+      - name: MONGODB_SERVICE_NAME
+        value: mongodb-internal
+      image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+      imagePullPolicy: Always
+      name: mongo-container
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - stat
+          - /tmp/initialized
+        failureThreshold: 3
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/mongodb/data
+        name: mongo-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    hostname: mongodb-0
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node2.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: mongodb-internal
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: mongo-data
+      persistentVolumeClaim:
+        claimName: mongo-data-mongodb-0
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container mongo-container; cpu, memory limit for container mongo-container'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: mongodb-
+    labels:
+      controller-revision-hash: mongodb-84c5cf6978
+      name: mongodb
+      statefulset.kubernetes.io/pod-name: mongodb-1
+    ownerReferences:
+    - apiVersion: apps/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: mongodb
+      uid: 88e9b134-f495-11e8-b028-025673be3232
+  spec:
+    containers:
+    - args:
+      - run-mongod-replication
+      env:
+      - name: MONGODB_DATABASE
+        value: mongodb
+      - name: MONGODB_USER
+        value: mongodb_user
+      - name: MONGODB_PASSWORD
+        value: mongodb_password
+      - name: MONGODB_ADMIN_PASSWORD
+        value: mongodb_admin_password
+      - name: MONGODB_REPLICA_NAME
+        value: rs0
+      - name: MONGODB_KEYFILE_VALUE
+        value: "12345678901234567890"
+      - name: MONGODB_SERVICE_NAME
+        value: mongodb-internal
+      image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+      imagePullPolicy: Always
+      name: mongo-container
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - stat
+          - /tmp/initialized
+        failureThreshold: 3
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/mongodb/data
+        name: mongo-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    hostname: mongodb-1
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node6.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: mongodb-internal
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: mongo-data
+      persistentVolumeClaim:
+        claimName: mongo-data-mongodb-1
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container mongo-container; cpu, memory limit for container mongo-container'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: mongodb-
+    labels:
+      controller-revision-hash: mongodb-84c5cf6978
+      name: mongodb
+      statefulset.kubernetes.io/pod-name: mongodb-2
+    ownerReferences:
+    - apiVersion: apps/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: mongodb
+      uid: 88e9b134-f495-11e8-b028-025673be3232
+  spec:
+    containers:
+    - args:
+      - run-mongod-replication
+      env:
+      - name: MONGODB_DATABASE
+        value: mongodb
+      - name: MONGODB_USER
+        value: mongodb_user
+      - name: MONGODB_PASSWORD
+        value: mongodb_password
+      - name: MONGODB_ADMIN_PASSWORD
+        value: mongodb_admin_password
+      - name: MONGODB_REPLICA_NAME
+        value: rs0
+      - name: MONGODB_KEYFILE_VALUE
+        value: "12345678901234567890"
+      - name: MONGODB_SERVICE_NAME
+        value: mongodb-internal
+      image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+      imagePullPolicy: Always
+      name: mongo-container
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - stat
+          - /tmp/initialized
+        failureThreshold: 3
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/mongodb/data
+        name: mongo-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    hostname: mongodb-2
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node3.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: mongodb-internal
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: mongo-data
+      persistentVolumeClaim:
+        claimName: mongo-data-mongodb-2
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container mongo-container; cpu, memory limit for container mongo-container'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: mongodb-
+    labels:
+      controller-revision-hash: mongodb-84c5cf6978
+      name: mongodb
+      statefulset.kubernetes.io/pod-name: mongodb-3
+    ownerReferences:
+    - apiVersion: apps/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: mongodb
+      uid: 88e9b134-f495-11e8-b028-025673be3232
+  spec:
+    containers:
+    - args:
+      - run-mongod-replication
+      env:
+      - name: MONGODB_DATABASE
+        value: mongodb
+      - name: MONGODB_USER
+        value: mongodb_user
+      - name: MONGODB_PASSWORD
+        value: mongodb_password
+      - name: MONGODB_ADMIN_PASSWORD
+        value: mongodb_admin_password
+      - name: MONGODB_REPLICA_NAME
+        value: rs0
+      - name: MONGODB_KEYFILE_VALUE
+        value: "12345678901234567890"
+      - name: MONGODB_SERVICE_NAME
+        value: mongodb-internal
+      image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+      imagePullPolicy: Always
+      name: mongo-container
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - stat
+          - /tmp/initialized
+        failureThreshold: 3
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/mongodb/data
+        name: mongo-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    hostname: mongodb-3
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node5.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: mongodb-internal
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: mongo-data
+      persistentVolumeClaim:
+        claimName: mongo-data-mongodb-3
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container mongo-container; cpu, memory limit for container mongo-container'
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: mongodb-
+    labels:
+      controller-revision-hash: mongodb-84c5cf6978
+      name: mongodb
+      statefulset.kubernetes.io/pod-name: mongodb-4
+    ownerReferences:
+    - apiVersion: apps/v1beta1
+      blockOwnerDeletion: true
+      controller: true
+      kind: StatefulSet
+      name: mongodb
+      uid: 88e9b134-f495-11e8-b028-025673be3232
+  spec:
+    containers:
+    - args:
+      - run-mongod-replication
+      env:
+      - name: MONGODB_DATABASE
+        value: mongodb
+      - name: MONGODB_USER
+        value: mongodb_user
+      - name: MONGODB_PASSWORD
+        value: mongodb_password
+      - name: MONGODB_ADMIN_PASSWORD
+        value: mongodb_admin_password
+      - name: MONGODB_REPLICA_NAME
+        value: rs0
+      - name: MONGODB_KEYFILE_VALUE
+        value: "12345678901234567890"
+      - name: MONGODB_SERVICE_NAME
+        value: mongodb-internal
+      image: registry.access.redhat.com/rhscl/mongodb-34-rhel7:latest
+      imagePullPolicy: Always
+      name: mongo-container
+      ports:
+      - containerPort: 27017
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - stat
+          - /tmp/initialized
+        failureThreshold: 3
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/mongodb/data
+        name: mongo-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    hostname: mongodb-4
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node7.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    subdomain: mongodb-internal
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - name: mongo-data
+      persistentVolumeClaim:
+        claimName: mongo-data-mongodb-4
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      kubernetes.io/limit-ranger: 'LimitRanger plugin set: cpu, memory request for
+        container rocketchat; cpu, memory limit for container rocketchat'
+      openshift.io/deployment-config.latest-version: "1"
+      openshift.io/deployment-config.name: rocketchat
+      openshift.io/deployment.name: rocketchat-1
+      openshift.io/generated-by: OpenShiftNewApp
+      openshift.io/scc: restricted
+    creationTimestamp: null
+    generateName: rocketchat-1-
+    labels:
+      app: rocketchat
+      deployment: rocketchat-1
+      deploymentconfig: rocketchat
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicationController
+      name: rocketchat-1
+      uid: 1106b689-f496-11e8-b028-025673be3232
+  spec:
+    containers:
+    - env:
+      - name: MONGO_URL
+        value: mongodb://mongodb_user:mongodb_password@mongodb:27017/mongodb?replicaSet=rs0
+      image: docker.io/rocketchat/rocket.chat@sha256:04ff52eb15fbbe542d29e787b72840f7b995f4384d2603cc0c5c9f62d18ffa42
+      imagePullPolicy: IfNotPresent
+      name: rocketchat
+      ports:
+      - containerPort: 3000
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1536Mi
+        requests:
+          cpu: 50m
+          memory: 256Mi
+      securityContext:
+        capabilities:
+          drop:
+          - KILL
+          - MKNOD
+          - SETGID
+          - SETUID
+        runAsUser: 1003190000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /app/uploads
+        name: rocketchat-volume-1
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-pmvsg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    imagePullSecrets:
+    - name: default-dockercfg-rvqhk
+    nodeName: node5.4df4.internal
+    nodeSelector:
+      env: users
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext:
+      fsGroup: 1003190000
+      seLinuxOptions:
+        level: s0:c56,c55
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoSchedule
+      key: node.kubernetes.io/memory-pressure
+      operator: Exists
+    volumes:
+    - emptyDir: {}
+      name: rocketchat-volume-1
+    - name: default-token-pmvsg
+      secret:
+        defaultMode: 420
+        secretName: default-token-pmvsg
+  status:
+    phase: Pending
+    qosClass: Burstable
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    annotations:
+      openshift.io/deployer-pod.completed-at: 2018-11-30 11:50:06 +0000 UTC
+      openshift.io/deployer-pod.created-at: 2018-11-30 11:50:00 +0000 UTC
+      openshift.io/deployer-pod.name: rocketchat-1-deploy
+      openshift.io/deployment-config.latest-version: "1"
+      openshift.io/deployment-config.name: rocketchat
+      openshift.io/deployment.phase: Complete
+      openshift.io/deployment.replicas: "1"
+      openshift.io/deployment.status-reason: config change
+      openshift.io/encoded-deployment-config: |
+        {"kind":"DeploymentConfig","apiVersion":"v1","metadata":{"name":"rocketchat","namespace":"xyz-rocket","selfLink":"/apis/apps.openshift.io/v1/namespaces/xyz-rocket/deploymentconfigs/rocketchat","uid":"10f44144-f496-11e8-b028-025673be3232","resourceVersion":"934798","generation":2,"creationTimestamp":"2018-11-30T11:50:00Z","labels":{"app":"rocketchat"},"annotations":{"openshift.io/generated-by":"OpenShiftNewApp"}},"spec":{"strategy":{"type":"Rolling","rollingParams":{"updatePeriodSeconds":1,"intervalSeconds":1,"timeoutSeconds":600,"maxUnavailable":"25%","maxSurge":"25%"},"resources":{},"activeDeadlineSeconds":21600},"triggers":[{"type":"ConfigChange"},{"type":"ImageChange","imageChangeParams":{"automatic":true,"containerNames":["rocketchat"],"from":{"kind":"ImageStreamTag","namespace":"xyz-rocket","name":"rocketchat:0.63.3"},"lastTriggeredImage":"docker.io/rocketchat/rocket.chat@sha256:04ff52eb15fbbe542d29e787b72840f7b995f4384d2603cc0c5c9f62d18ffa42"}}],"replicas":1,"revisionHistoryLimit":10,"test":false,"selector":{"app":"rocketchat","deploymentconfig":"rocketchat"},"template":{"metadata":{"creationTimestamp":null,"labels":{"app":"rocketchat","deploymentconfig":"rocketchat"},"annotations":{"openshift.io/generated-by":"OpenShiftNewApp"}},"spec":{"volumes":[{"name":"rocketchat-volume-1","emptyDir":{}}],"containers":[{"name":"rocketchat","image":"docker.io/rocketchat/rocket.chat@sha256:04ff52eb15fbbe542d29e787b72840f7b995f4384d2603cc0c5c9f62d18ffa42","ports":[{"containerPort":3000,"protocol":"TCP"}],"env":[{"name":"MONGO_URL","value":"mongodb://mongodb_user:mongodb_password@mongodb:27017/mongodb?replicaSet=rs0"}],"resources":{},"volumeMounts":[{"name":"rocketchat-volume-1","mountPath":"/app/uploads"}],"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","imagePullPolicy":"IfNotPresent"}],"restartPolicy":"Always","terminationGracePeriodSeconds":30,"dnsPolicy":"ClusterFirst","securityContext":{},"schedulerName":"default-scheduler"}}},"status":{"latestVersion":1,"observedGeneration":1,"replicas":0,"updatedReplicas":0,"availableReplicas":0,"unavailableReplicas":0,"details":{"message":"config change","causes":[{"type":"ConfigChange"}]},"conditions":[{"type":"Available","status":"False","lastUpdateTime":"2018-11-30T11:50:00Z","lastTransitionTime":"2018-11-30T11:50:00Z","message":"Deployment config does not have minimum availability."}]}}
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: rocketchat
+      openshift.io/deployment-config.name: rocketchat
+    name: rocketchat-1
+    ownerReferences:
+    - apiVersion: apps.openshift.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: DeploymentConfig
+      name: rocketchat
+      uid: 10f44144-f496-11e8-b028-025673be3232
+  spec:
+    replicas: 1
+    selector:
+      app: rocketchat
+      deployment: rocketchat-1
+      deploymentconfig: rocketchat
+    template:
+      metadata:
+        annotations:
+          openshift.io/deployment-config.latest-version: "1"
+          openshift.io/deployment-config.name: rocketchat
+          openshift.io/deployment.name: rocketchat-1
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: rocketchat
+          deployment: rocketchat-1
+          deploymentconfig: rocketchat
+      spec:
+        containers:
+        - env:
+          - name: MONGO_URL
+            value: mongodb://mongodb_user:mongodb_password@mongodb:27017/mongodb?replicaSet=rs0
+          image: docker.io/rocketchat/rocket.chat@sha256:04ff52eb15fbbe542d29e787b72840f7b995f4384d2603cc0c5c9f62d18ffa42
+          imagePullPolicy: IfNotPresent
+          name: rocketchat
+          ports:
+          - containerPort: 3000
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /app/uploads
+            name: rocketchat-volume-1
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: rocketchat-volume-1
+  status:
+    replicas: 0
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: null
+    labels:
+      name: mongodb
+    name: mongodb
+  spec:
+    ports:
+    - name: mongodb
+      port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      name: mongodb
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+    creationTimestamp: null
+    labels:
+      name: mongodb
+    name: mongodb-internal
+  spec:
+    clusterIP: None
+    ports:
+    - name: mongodb
+      port: 27017
+      protocol: TCP
+      targetPort: 27017
+    selector:
+      name: mongodb
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: null
+    labels:
+      app: rocketchat
+    name: rocketchat
+  spec:
+    ports:
+    - name: 3000-tcp
+      port: 3000
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: rocketchat
+      deploymentconfig: rocketchat
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+kind: List
+metadata: {}
